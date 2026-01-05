@@ -199,7 +199,7 @@ def upload_to_release(repo_name, release_id, file_path, token):
         return None
 
 def process_drive_file():
-    """Main processing function - Only keeps GitHub links"""
+    """Main processing function"""
     print("=" * 80)
     print("GitHub Actions - Drive to Release Uploader")
     print("=" * 80)
@@ -212,26 +212,21 @@ def process_drive_file():
     with open(DRIVE_FILE, 'r') as f:
         lines = f.readlines()
     
-    github_links = []  # Only store GitHub links
+    updated_lines = []
     temp_folder = "temp_videos"
     os.makedirs(temp_folder, exist_ok=True)
     
     for idx, line in enumerate(lines, 1):
         line = line.strip()
         
-        # Skip empty lines
-        if not line:
-            continue
-        
-        # If already a GitHub link, keep it
-        if 'github.com' in line:
-            print(f"\n[{idx}/{len(lines)}] Already GitHub link - keeping it")
-            github_links.append(line)
+        # Skip empty lines or already processed lines (GitHub URLs)
+        if not line or 'github.com' in line:
+            updated_lines.append(line)
             continue
         
         # Check if it's a Drive URL
         if 'drive.google.com' not in line:
-            print(f"\n[{idx}/{len(lines)}] Not a Drive URL - skipping")
+            updated_lines.append(line)
             continue
         
         print(f"\n[{idx}/{len(lines)}] Processing Drive URL...")
@@ -240,7 +235,8 @@ def process_drive_file():
         # Extract file ID
         file_id = extract_drive_file_id(line)
         if not file_id:
-            print("✗ Could not extract file ID - skipping")
+            print("✗ Could not extract file ID")
+            updated_lines.append(line)
             continue
         
         # Get original filename
@@ -255,7 +251,8 @@ def process_drive_file():
         
         # Download from Drive
         if not download_large_file_from_drive(file_id, temp_path):
-            print("✗ Download failed - skipping this video")
+            print("✗ Download failed, keeping original URL")
+            updated_lines.append(line)
             continue
         
         # Create release
@@ -265,17 +262,19 @@ def process_drive_file():
         if not release:
             print("✗ Failed to create release")
             os.remove(temp_path)
+            updated_lines.append(line)
             continue
         
         # Upload to release
         github_url = upload_to_release(REPO_NAME, release['id'], temp_path, GITHUB_TOKEN)
         
         if github_url:
-            # Add GitHub URL to list
-            github_links.append(github_url)
+            # Replace with GitHub URL
+            updated_lines.append(github_url)
             print(f"✓ Successfully processed!")
         else:
-            print("✗ Upload failed - video not added")
+            # Keep original URL if upload failed
+            updated_lines.append(line)
         
         # Cleanup
         try:
@@ -285,15 +284,15 @@ def process_drive_file():
         
         print("-" * 80)
     
-    # Write ONLY GitHub links to drive.txt
+    # Update drive.txt with GitHub URLs
     with open(DRIVE_FILE, 'w') as f:
-        for link in github_links:
-            f.write(link + '\n')
+        for line in updated_lines:
+            if line:  # Skip empty lines
+                f.write(line + '\n')
     
     print("\n" + "=" * 80)
     print("✓ Processing completed!")
-    print(f"✓ {DRIVE_FILE} updated - contains {len(github_links)} GitHub links")
-    print(f"✓ All old Drive links removed")
+    print(f"✓ {DRIVE_FILE} updated with GitHub release URLs")
     print("=" * 80)
 
 if __name__ == "__main__":
