@@ -1,0 +1,14 @@
+name: Drive to GitHub Release Uploader
+
+on:
+  workflow_dispatch:  # Manual trigger করার জন্য
+  push:
+    paths:
+      - 'drive.txt'  # drive.txt update হলে auto run
+
+permissions:
+  contents: write  # Repository তে write করার permission
+  
+jobs:
+  upload-videos:
+    runs-on: ubuntu-latest
